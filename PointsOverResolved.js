@@ -75,12 +75,11 @@ function PointsOverResolved (range, DURATION) {
   };
   // Private methods
   this._setTeamMembers = function () {
-    this.teamMembers = []; // Set it to an empty array so that this.teamMembers is defined before itteration
-    this.teamMembers = this.range.filter(function (row, i) {
-      return -1 === this.teamMembers.indexOf(row[headerKeys.assignee]);
-    }, this).map(function (row) {
-      return row[headerKeys.assignee];
-    }, this);
+    this.teamMembers = this.range.map(function (row) {
+      return row[this.headerKeys.assignee];
+    }, this).reduce(function (acc, assignee) {
+      return -1 === acc.indexOf(assignee) ? acc.concat([assignee]) : acc;
+    }, []);
 
     return this.teamMembers;
   };
@@ -120,6 +119,10 @@ function PointsOverResolved (range, DURATION) {
     this.range.splice(0, 1);
 
     this.teamMembers = undefined !== teamMembers ? teamMembers : this._setTeamMembers();
+    // Remove blanks from teamMembers
+    this.teamMembers = this.teamMembers.filter(function (member) {
+      return '' !== member;
+    });
 
     this.range = this.range.filter(function (row) {
       // Filter out:
