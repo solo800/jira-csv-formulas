@@ -143,6 +143,8 @@ function PointTotals (range, teamMembers) {
         ]);
       }, this);
     });
+
+    return this.chunks;
   };
 
   return this._init(range, teamMembers);
