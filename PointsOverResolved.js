@@ -38,7 +38,6 @@ function PointsOverResolved (range, DURATION) {
       output.push(['week of ' + this._formatDate(new Date(this.chunks[i].start))].concat(chunk));
       // output.push(['week of ' + this._formatDate(new Date(this.chunks[i].start))].concat(chunk));
     }, this);
-
     return output;
   };
   this.columnsToDate = function (columns) {
@@ -73,6 +72,42 @@ function PointsOverResolved (range, DURATION) {
     var score = parseInt(row[this.headerKeys['sprint score']]);
     return !isNaN(orig) ? orig / 3600 : score;
   };
+  // Only works on columns with strings as values
+  this.simplifyColumns = function (columnLabel) {
+    columnLabel = undefined === columnLabel ? 'sprint' : columnLabel;
+
+    // Flaten the Sprint columns
+    this.range = this.range.map(function (row, i, range) {
+      var values = [];
+
+      // Put all the sprints into an array
+      this.header.forEach(function (label, i) {
+        if (columnLabel === label) {
+          if ('' !== row[i]) {
+            values.push(row[i]);
+          }
+        }
+      });
+
+      // Sort the sprints and grab the last one and add it at the end of the row, that's our new row
+      mappedRow = row.filter(function (col, i) {
+        return columnLabel !== this.header[i];
+      }, this);
+
+      mappedRow.push(values.sort().pop());
+
+      return mappedRow;
+    }, this);
+
+    // Make sure to update the header to have only one sprint column
+    this.header = this.header.filter(function (label) {
+      return columnLabel !== label;
+    });
+
+    this.header.push(columnLabel);
+
+    this._setHeaderKeys();
+  };
   // Private methods
   this._setTeamMembers = function () {
     this.teamMembers = this.range.map(function (row) {
@@ -95,7 +130,7 @@ function PointsOverResolved (range, DURATION) {
     return new Date(date.getFullYear(), date.getMonth(), date.getDate());
   }
   this._formatDate = function (date) {
-    return date.getMonth() + '/' + date.getDate() + '/' + date.getFullYear();
+    return (date.getMonth() + 1) + '/' + date.getDate() + '/' + date.getFullYear();
   }
   this._setHeaderKeys = function () {
     this.headerKeys = {};
@@ -130,7 +165,6 @@ function PointsOverResolved (range, DURATION) {
       // rows with no estimate
       // rows with an assignee that is not in team members
       // rows with a resolved that is not a date
-
       var isDate = true;
       if (!(row[this.headerKeys.resolved] instanceof Date)) {
         isDate = false;
@@ -201,7 +235,7 @@ function PointsOverResolved (range, DURATION) {
 
           chunk.rows.forEach(function (row) {
             if (assignee === row[this.headerKeys.assignee]) {
-              points += this.getEstimate(row);
+              points += !isNaN(parseInt(this.getEstimate(row))) ? this.getEstimate(row) : 0;
             }
           }, this);
 
