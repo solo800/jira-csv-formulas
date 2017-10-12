@@ -1,4 +1,4 @@
-function PointsOverSprint (range, DURATION) {
+function PointsOverSprint (range, teamMembers) {
   /**
    * Orders by column
    * if column is number it is assumed to be an index of range to order by
@@ -141,8 +141,7 @@ function PointsOverSprint (range, DURATION) {
     return this.headerKeys;
   }
   // Init
-  this._init = function (range, DURATION, teamMembers) {
-    this.DURATION = undefined !== DURATION ? DURATION : 7;
+  this._init = function (range, teamMembers) {
     this.DAY_MILLISECONDS = 86400000;
     this.rawRange = range.slice(); // Copy array
     this.range = range;
@@ -152,7 +151,7 @@ function PointsOverSprint (range, DURATION) {
     // Remove the header row from the range
     this.range.splice(0, 1);
 
-    this.teamMembers = undefined !== teamMembers ? teamMembers : this._setTeamMembers();
+    this.teamMembers = undefined !== teamMembers ? teamMembers[0] : this._setTeamMembers();
     // Remove blanks from teamMembers
     this.teamMembers = this.teamMembers.filter(function (member) {
       return '' !== member;
@@ -169,6 +168,7 @@ function PointsOverSprint (range, DURATION) {
       return !(
         0 === row.length ||
         0 === this.getEstimate(row) ||
+        isNaN(parseInt(this.getEstimate(row))) ||
         -1 === this.teamMembers.indexOf(row[this.headerKeys.assignee]) ||
         '' === row[this.headerKeys.sprint]
       );
@@ -244,5 +244,5 @@ function PointsOverSprint (range, DURATION) {
 
     return [['Sprints'].concat(this.teamMembers)].concat(this.processedChunks);
   }
-  return this._init(range, DURATION);
+  return this._init(range, teamMembers);
 }

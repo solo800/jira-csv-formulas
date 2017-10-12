@@ -1,4 +1,4 @@
-function TicketsByComplexity (range, DURATION, teamMembers) {
+function TicketsByComplexity (range, teamMembers) {
   /**
    * Orders by column
    * if column is number it is assumed to be an index of range to order by
@@ -109,97 +109,88 @@ function TicketsByComplexity (range, DURATION, teamMembers) {
     return this.headerKeys;
   }
   // Init
-  this._init = function (range, DURATION, teamMembers) {
-    this.DURATION = undefined !== DURATION ? DURATION : 7;
-    this.teamMembers = undefined !== teamMembers ? teamMembers : ['bmarshall', 'jslavin', 'slakshmanan', 'jadams', 'nathan', 'asolomon']
+  this._init = function (range, teamMembers) {
     this.DAY_MILLISECONDS = 86400000;
     this.rawRange = range.slice(); // Copy array
-    this.header = this._formatHeader(range);
     this.range = range;
+    this._setHeader();
+    this._setHeaderKeys();
 
-    // Setup a header key so that we can easily reference the correct index for a column when using only the label
-    var headerKeys = {};
-    this.header.forEach(function (label, i) {
-      headerKeys[label] = i;
+    // Remove the header row from the range
+    this.range.splice(0, 1);
+
+    this.teamMembers = undefined !== teamMembers ? teamMembers[0] : this._setTeamMembers();
+    // Remove blanks from teamMembers
+    this.teamMembers = this.teamMembers.filter(function (member) {
+      return '' !== member;
     });
-    this.headerKeys = headerKeys;
 
     this.range = this.range.filter(function (row) {
       // Filter out:
       // blank rows
       // rows with no estimate
       // rows with an assignee that is not in team members
+      // rows with a resolved that is not a date
+      var isDate = true;
+      if (!(row[this.headerKeys.resolved] instanceof Date)) {
+        isDate = false;
+      } else if (isNaN(row[this.headerKeys.resolved].getTime())) {
+        isDate = false;
+      }
+
       return !(
         0 === row.length ||
         0 === this.getEstimate(row) ||
-        -1 === this.teamMembers.indexOf(row[this.headerKeys.assignee])
+        isNaN(parseInt(this.getEstimate(row))) ||
+        -1 === this.teamMembers.indexOf(row[this.headerKeys.assignee]) ||
+        false === isDate
       );
     });
 
-    this.orderBy('resolved');
-
     this.chunkRange(function () {
+      var validEstimates = [1,2,3,5,8,13,21];
+      var getEstimate = this.getEstimate;
+      var chunk;
       this.chunks = [];
-      var colIndex = this.headerKeys.resolved;
-      var key;
-      var found;
-      var toDate = this._dateTimeToDate;
 
-      // Set up the chunks
-      var start = this.range[0][colIndex].getTime();
-      var end = start + (this.DAY_MILLISECONDS * this.DURATION);
-      var limit = this.range[this.range.length - 1][colIndex].getTime();
-
-      var li = 1000;
-      while (start < limit && li > 0) {
-        li--;
-        this.chunks.push({
-          start: start,
-          end: end,
-          rows: [],
-        });
-
-        start = end;
-        end = start + (this.DAY_MILLISECONDS * this.DURATION);
-      }
-
-      this.range.forEach(function (row) {
-        if (row[colIndex] instanceof Date) {
-          // Iterate over all chunks checking to see if this fits in one
-          this.chunks.forEach(function (chunk) {
-            if (chunk.start <= row[colIndex].getTime() && chunk.end > row[colIndex].getTime()) {
-              chunk.rows.push(row);
-            }
-          });
+      // Chunk rows according to complexity
+      this.range.reduce(function (acc, row) {
+        if (-1 === acc.indexOf(getEstimate(row))) {
+          return acc.concat(getEstimate(row));
         }
+        return acc;
+      }, []).filter(function (estimate) {
+        return -1 < validEstimates.indexOf(estimate);
+      }).sort(function (prev, next) {
+        return prev - next;
+      }).forEach(function (estimate) {
+        this.chunks.push(this.range.filter(function (row) {
+          return estimate === this.getEstimate(row);
+        }, this));
       }, this);
     });
 
     this.processChunks(function () {
       this.processedChunks = [];
-      var chunkRow;
-      var points;
+      var processedChunk;
 
+      // For each estimate format it to a single row with columns of team member's ticket counts
       this.chunks.forEach(function (chunk) {
-        chunkRow = [];
-        // Grab all rows for this team member and add them to the range
-        this.teamMembers.forEach(function (assignee) {
-          points = 0;
+        processedChunk = [this.getEstimate(chunk[0])];
 
-          chunk.rows.forEach(function (row) {
-            if (assignee === row[this.headerKeys.assignee]) {
-              points += this.getEstimate(row);
-            }
-          }, this);
-
-          chunkRow.push(points);
+        this.teamMembers.forEach(function (member) {
+          processedChunk.push(chunk.filter(function (row) {
+            return member === row[this.headerKeys.assignee];
+          }, this).length);
         }, this);
 
-        this.processedChunks.push(chunkRow);
+        this.processedChunks.push(processedChunk);
       }, this);
     });
 
-    return this.outputChunks(['week of '].concat(this.teamMembers));
+    this.processedChunks.unshift(['Ticket Estimate'].concat(this.teamMembers));
+
+    return this.processedChunks;
   }
-  return this._init(range, DURATION, teamMembers);
+  return this._init(range, teamMembers);
 }
